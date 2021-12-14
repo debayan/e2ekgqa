@@ -67,6 +67,10 @@ def entcands(entlabel):
         print(entlabel,err)
         return results
 
+def pnelentcands(question):
+    r = requests.post("http://ltdemos.informatik.uni-hamburg.de/pnel/processQuery",json={"nlquery":question},headers={'Connection':'close'})
+    ents = r.json()
+    return ents
 
 
 def vectorise(question,labels):
@@ -99,6 +103,19 @@ def vectorise(question,labels):
     strarr = questionarr
     embarr = [x+200*[0.0] for x in questionftembed]
     #[print(x,y) for x,y in zip(questionarr,questionftembed)]
+    strarr += ['[SEP]']
+    embarr += [500*[-1.0]]
+    pnelents = pnelentcands(question)
+    print("pnel ents:",pnelents['entities'])
+    for k,v in pnelents['entities'].items():
+        seen = []
+        for entcand in v:
+            if entcand[0] not in seen:
+                labelembed = ft([entcand[3]])[0]
+                entemb = kgembed(entcand[0])
+                strarr += [entcand[0]]
+                embarr += [labelembed + entemb]
+                seen.append(entcand[0])
     strarr += ['[SEP]']
     embarr += [500*[-1.0]]
     for k,v in entlabelcands.items():
