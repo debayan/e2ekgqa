@@ -1,13 +1,11 @@
 import sys,os,json,requests,re
 import itertools
-from elasticsearch import Elasticsearch
 import time
 
 
 class QueryProcessor:
 	def __init__(self):
-		self.es = Elasticsearch(host='ltcpu1',port=45198)
-		self.prefixes = {'wdt:': 'http://www.wikidata.org/prop/direct/', 'p:' : 'http://www.wikidata.org/prop/', 'ps:': 'http://www.wikidata.org/prop/statement/', 'pq:': 'http://www.wikidata.org/prop/qualifier/'}
+		pass
 
 	def sparqlendpoint(self, query):
 		url = 'https://query.wikidata.org/sparql'
@@ -21,50 +19,32 @@ class QueryProcessor:
 			print(err)
 			return {"error":repr(err), "errorcode":r.status_code}
 
-	def addprefix(self, queryarr):
-		prefixed_query = []
-		for token in queryarr:
-			if  re.match('^[q0-9_]+$',token): #entity
-				prefixed_query.append(['wd:'+token.upper()])
-				continue
-			elif re.match('^[p0-9_]+$',token): #prop
-				props = []
-				for k,v in self.prefixes.items():
-					prop = k+token.upper()
-					props.append(prop)
-				prefixed_query.append(props)
-					
-			else:
-				prefixed_query.append([token])
-		print(prefixed_query)
-		prefixed_queries = list(itertools.product(*prefixed_query))
-		return prefixed_queries
-
-	def findresults(self,prefixed_queries):
+	def findresults(self, query_arr):
 		result_queries = []
-		for query in prefixed_queries:
-			time.sleep(0.5)
-			query = ' '.join(list(query))
-			result = self.sparqlendpoint(query)
-			if 'error' in result:
-				result_queries.append({"query":query,"result":result,"type":"error"})
-				continue
-			if 'results' in result:
-				if 'bindings' in result['results']:
-					if len(result['results']['bindings']) > 0:
-						result_queries.append({"query":query,"result":result['results']['bindings'],"type":"normal"})
-						return result_queries
-			if 'boolean' in result:
-				result_queries.append({"query":query,"result":result['boolean'],"type":"bool"})
-				return result_queries
-		return result_queries	
+		queries = []
+		query = ' '.join(query_arr)
+		query = query.replace(' wd: ',' wd:').replace(' p: ',' p:').replace(' wdt: ',' wdt:').replace(' ps: ' , ' ps:').replace(' pq: ',' pq:')
+		query = query.replace(' wd:q',' wd:Q').replace(' p:p',' p:P').replace(' wdt:p',' wdt:P').replace(' ps:p' , ' ps:P').replace(' pq:p',' pq:P')
+		queries.append(query)
+		result = self.sparqlendpoint(query)
+		if 'error' in result:
+			result_queries.append({"query":query,"result":result,"type":"error"})
+			return queries,result_queries
+		if 'results' in result:
+			if 'bindings' in result['results']:
+				if len(result['results']['bindings']) > 0:
+					result_queries.append({"query":query,"result":result['results']['bindings'],"type":"normal"})
+					return queries,result_queries
+		if 'boolean' in result:
+			result_queries.append({"query":query,"result":result['boolean'],"type":"bool"})
+			return queries,result_queries
+		return queries,result_queries	
 			
 		 
 	def fetchanswer(self, queryarr):
 		url = 'https://query.wikidata.org/sparql'
-		prefixed_queries = self.addprefix(queryarr)
-		result_queries = self.findresults(prefixed_queries)
-		return result_queries
+		queries,results = self.findresults(queryarr)
+		return queries,results
 
 
 q = QueryProcessor()

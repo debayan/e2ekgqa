@@ -28,9 +28,10 @@ def kgqa():
     query = r.json()
     print("query:",query)
 	# 4. hit sparql to wikidata and fetch answer
-    results = qp.fetchanswer(query['predicted_query'])
+    queries,results = qp.fetchanswer(query['predicted_query'])
     resultitem = copy.deepcopy(query)
     resultitem['results'] = results
+    resultitem['queries'] = queries
     print("results:",results)
     return json.dumps(resultitem, indent=4)
 
