@@ -22,11 +22,12 @@ class QueryProcessor:
 	def findresults(self, query_arr):
 		result_queries = []
 		queries = []
+		result = {}
 		query = ' '.join(query_arr)
 		query = query.replace(' wd: ',' wd:').replace(' p: ',' p:').replace(' wdt: ',' wdt:').replace(' ps: ' , ' ps:').replace(' pq: ',' pq:')
-		query = query.replace(' wd:q',' wd:Q').replace(' p:p',' p:P').replace(' wdt:p',' wdt:P').replace(' ps:p' , ' ps:P').replace(' pq:p',' pq:P')
+		query = query.replace(' wd:q',' wd:Q').replace(' p:p',' p:P').replace(' wdt:p',' wdt:P').replace(' ps:p' , ' ps:P').replace(' pq:p',' pq:P').replace(", \' ",", \'").replace(" \' )","\' )").replace("\' en \'","\'en\'")
 		queries.append(query)
-		result = self.sparqlendpoint(query)
+		#result = self.sparqlendpoint(query)
 		if 'error' in result:
 			result_queries.append({"query":query,"result":result,"type":"error"})
 			return queries,result_queries
