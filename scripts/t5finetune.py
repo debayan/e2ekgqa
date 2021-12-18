@@ -33,7 +33,7 @@ model_args.use_multiprocessing = False
 model_args.train_batch_size = 16
 model_args.fp16 = False
 #model_args.learning_rate = 2e-5
-model_args.output_dir = 'outputs4/'
+model_args.output_dir = 'outputs5/'
 
 
 model = T5Model("t5", "t5-base", args=model_args)

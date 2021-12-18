@@ -5,9 +5,15 @@ import requests
 import torch.multiprocessing
 from elasticsearch import Elasticsearch
 from sentence_transformers import SentenceTransformer, util
+from annoy import AnnoyIndex
 
+model_name = 'quora-distilbert-multilingual'
+sentencemodel = SentenceTransformer(model_name)
+top_k_hits = 30         #Output k hits
+annoy_index = AnnoyIndex(768, 'angular')
+annoy_index.load('annoy-p31.ann')
+annoyents = json.loads(open('annoyentids.json').read())
 
-sentencemodel = SentenceTransformer('all-MiniLM-L6-v2')
 
 reldict = json.loads(open('en.json').read())
 goldrellabels = []
@@ -19,11 +25,24 @@ sentence_embeddings = sentencemodel.encode([x[1] for x in goldrellabels], conver
 
 es = Elasticsearch(host='ltcpu1',port=49158)
 
+def annmatch(entlabel):
+    question_embedding = sentencemodel.encode(entlabel)
+    corpus_ids, scores = annoy_index.get_nns_by_vector(question_embedding, top_k_hits, include_distances=True)
+    return [annoyents[id] for id in corpus_ids]
 
-def ft(labels): #fasttext
-    r = requests.post("http://ltcpu1:49157/ftwv",json={'chunks': labels},headers={'Connection':'close'})
-    descembedding = r.json()
-    return descembedding
+def tremb(labels): #transformers
+    sentence_embeddings = sentencemodel.encode(labels, convert_to_tensor=True)
+    return sentence_embeddings.tolist()
+
+def getlabel(ent):
+    results = es.search(index='wikidataentitylabelindex02',body={"query":{"term":{"uri":{"value":ent}}}})
+    try:
+        for res in results['hits']['hits']:
+            return res['_source']['wikidataLabel']
+    except Exception as err:
+        print(results)
+        print(ent,err)
+        return 'null'
 
 def kgembed(entid): #fasttext
     enturl = '<http://www.wikidata.org/entity/'+entid+'>'
@@ -91,54 +110,66 @@ def vectorise(question,labels):
     print("ents      :",ents)
     print("rels      :",rels)
     entlabelcands = {}
+    annentlabelcands = {}
     rellabelcands = {}
     for ent in ents:
         entlabelcands[ent] =  entcands(ent)
+        annentlabelcands[ent] = annmatch(ent)
     for rel in rels:
         rellabelcands[rel] =  relcands(rel)
     strarr = []
     embarr = []
     questionarr = question.split()
-    questionftembed = ft(questionarr)
+    questionftembed = tremb(questionarr)
     strarr = questionarr
     embarr = [x+200*[0.0] for x in questionftembed]
     #[print(x,y) for x,y in zip(questionarr,questionftembed)]
     strarr += ['[SEP]']
-    embarr += [500*[-1.0]]
-    pnelents = pnelentcands(question)
-    print("pnel ents:",pnelents['entities'])
-    for k,v in pnelents['entities'].items():
-        seen = []
-        for entcand in v:
-            if entcand[0] not in seen:
-                labelembed = ft([entcand[3]])[0]
-                entemb = kgembed(entcand[0])
-                strarr += [entcand[0]]
-                embarr += [labelembed + entemb]
-                seen.append(entcand[0])
-    strarr += ['[SEP]']
-    embarr += [500*[-1.0]]
+    embarr += [968*[-1.0]]
+#    pnelents = pnelentcands(question)
+#    print("pnel ents:",pnelents['entities'])
+#    for k,v in pnelents['entities'].items():
+#        seen = []
+#        for entcand in v:
+#            if entcand[0] not in seen:
+#                labelembed = tremb([entcand[3]])[0]
+#                entemb = kgembed(entcand[0])
+#                strarr += [entcand[0]]
+#                embarr += [labelembed + entemb]
+#                seen.append(entcand[0])
+#    strarr += ['[SEP]']
+#    embarr += [968*[-1.0]]
     for k,v in entlabelcands.items():
-        groundlabel = k
-        groundembed = ft(groundlabel)
-        labelembeds = ft([x['wikidataLabel'] for x in v])
+        if len(v) == 0:
+            continue
+        labelembeds = tremb([x['wikidataLabel'] for x in v])
         entembs = [kgembed(x['uri']) for x in v]
         #[print(x,y,z) for x,y,z in zip(v,labelembeds,entembs)]
         strarr += [x['uri'] for x in v]
         embarr += [x+y for x,y in zip(labelembeds,entembs)]
         strarr += ['[SEP]']
-        embarr += [500*[-1.0]]
+        embarr += [968*[-1.0]]
+    for k,v in annentlabelcands.items():
+        if len(v) == 0:
+            continue
+        labelembeds = tremb([getlabel(x) for x in v])
+        entembs = [kgembed(x) for x in v]
+        #[print(x,y,z) for x,y,z in zip(v,labelembeds,entembs)]
+        strarr += [x for x in v]
+        embarr += [x+y for x,y in zip(labelembeds,entembs)]
+        strarr += ['[SEP]']
+        embarr += [968*[-1.0]]
     for k,v in rellabelcands.items():
-        groundlabel = k
-        groundembed = ft(groundlabel)
+        if len(v) == 0:
+            continue
         #print(k, groundembed)
-        labelembeds = ft([x[1] for x in v])
+        labelembeds = tremb([x[1] for x in v])
         relembs = [kgembed(x[0]) for x in v]
         #[print(x,y,z) for x,y,z in zip(v,labelembeds,relembs)]
         strarr += [x[0] for x in v]
         embarr += [x+y for x,y in zip(labelembeds,relembs)]
         strarr += ['[SEP]']
-        embarr += [500*[-1.0]]
+        embarr += [968*[-1.0]]
     return strarr,embarr
 
 

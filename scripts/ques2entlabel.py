@@ -37,7 +37,7 @@ for item in d:
         except Exception as err:
             print(err)
             continue
-    entlabelarr.sort()
+    #entlabelarr.sort()
     rellabelarr = []
     for rel in rels:
         try:
@@ -48,16 +48,14 @@ for item in d:
         except Exception as err:
             print(err)
             continue
-    rellabelarr.sort()
+    #rellabelarr.sort()
     if not item['question']:
         continue
-    arr.append({"question":item['question'], 'labels': ' :: '.join(entlabelarr) + ' // ' + ' ;; '.join(rellabelarr) , 'uid': item['uid'] ,'ents':ents, 'rels': rels})
+    arr.append({"question":item['question'], 'labels': ' :: '.join(entlabelarr) + ' // ' + ' ;; '.join(rellabelarr) , 'uid': item['uid'] ,'ents':ents, 'rels': rels, 'sparql_wikidata':wikisparql})
     if not item['paraphrased_question']:
         continue
-    arr.append({"question":item['paraphrased_question'], 'labels': ' :: '.join(entlabelarr) + ' // ' + ' ;; '.join(rellabelarr) , 'uid': item['uid'], 'ents':ents, 'rels': rels})
+    arr.append({"question":item['paraphrased_question'], 'labels': ' :: '.join(entlabelarr) + ' // ' + ' ;; '.join(rellabelarr) , 'uid': item['uid'], 'ents':ents, 'rels': rels, 'sparql_wikidata':wikisparql})
 
 f = open(sys.argv[2],'w')
 f.write(json.dumps(arr, indent=4))
 f.close()
-
-

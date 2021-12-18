@@ -1,8 +1,23 @@
 import sys,os,json,copy,torch
 from elasticsearch import Elasticsearch
-
 from sentence_transformers import SentenceTransformer, util
-model = SentenceTransformer('all-MiniLM-L6-v2')
+import csv
+import torch
+import json
+from annoy import AnnoyIndex
+
+es = Elasticsearch(host='ltcpu1',port=49158)
+
+
+model_name = 'quora-distilbert-multilingual'
+model = SentenceTransformer(model_name)
+
+top_k_hits = 30         #Output k hits
+
+
+annoy_index = AnnoyIndex(768, 'angular')
+annoy_index.load('annoy-p31.ann')
+annoyents = json.loads(open('annoyentids.json').read())
 
 reldict = json.loads(open('en.json').read())
 goldrellabels = []
@@ -49,19 +64,25 @@ def entcands(entlabel):
         print(entlabel,err)
         return results
 
+def annmatch(entlabel):
+    question_embedding = model.encode(entlabel)
+    corpus_ids, scores = annoy_index.get_nns_by_vector(question_embedding, top_k_hits, include_distances=True)
+    return [annoyents[id] for id in corpus_ids]
+	
+
 goldarr = []
 for idx,item in enumerate(dgold): 
     citem = copy.deepcopy(item)
     uid = item['uid']
-    predlabels = item['predlabel']
-    goldlabels = item['goldlabel']
+    #predlabels = item['predlabel']
+    goldlabels = item['labels']
     entss = ''
     relss = ''
     try:
-        entss,relss = predlabels.split('//')
+        entss,relss = goldlabels.split('//')
     except Exception as err:
-        print(err, predlabels)
-        entss = predlabels
+        print(err, goldlabels)
+        entss = goldlabels
     try:
         ents = entss.split('::')
         rels = relss.split(';;')
@@ -70,17 +91,24 @@ for idx,item in enumerate(dgold):
         continue
     print(idx)
     print("goldlabels:", goldlabels)
-    print("predlabels:",predlabels)
+    #print("predlabels:",predlabels)
     print("ents      :",ents)
     print("rels      :",rels)
     citem['entlabelcands'] = {}
+    citem['annentlabelcands'] = {}
     citem['rellabelcands'] = {}
     for ent in ents:
         results = entcands(ent)
         citem['entlabelcands'][ent] = results
+#        print("entlabelcands:",results)
+    for ent in ents:
+        results = annmatch(ent)
+        citem['annentlabelcands'][ent] = results
+#        print("annentlabelcans:",results)
     for rel in rels:
         results = relcands(rel)
         citem['rellabelcands'][rel] = results
+#        print("rellabelcands:",results)
     goldarr.append(citem)
 
 f = open(sys.argv[2],'w')
