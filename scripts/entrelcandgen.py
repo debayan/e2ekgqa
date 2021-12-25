@@ -5,7 +5,9 @@ import csv
 import torch
 import json
 from annoy import AnnoyIndex
+from Neighbours import Neighbours
 
+n = Neighbours()
 es = Elasticsearch(host='ltcpu1',port=49158)
 
 
@@ -31,6 +33,9 @@ sentence_embeddings = model.encode([x[1] for x in goldrellabels], convert_to_ten
 dgold = json.loads(open(sys.argv[1]).read())
 es = Elasticsearch(host='ltcpu1',port=49158)
 
+
+def getneighbours(entid):
+    return n.fetch_neighbours_relations(entid)
 
 def relcands(rellabel):
     results = []
@@ -97,9 +102,12 @@ for idx,item in enumerate(dgold):
     citem['entlabelcands'] = {}
     citem['annentlabelcands'] = {}
     citem['rellabelcands'] = {}
+    citem['neighbours'] = {}
     for ent in ents:
         results = entcands(ent)
         citem['entlabelcands'][ent] = results
+        for entid in results:
+            citem['neighbours'][entid['uri']] = getneighbours(entid['uri'])
 #        print("entlabelcands:",results)
     for ent in ents:
         results = annmatch(ent)
@@ -110,6 +118,10 @@ for idx,item in enumerate(dgold):
         citem['rellabelcands'][rel] = results
 #        print("rellabelcands:",results)
     goldarr.append(citem)
+    if idx%1000 == 0:
+        f = open(sys.argv[2],'w')
+        f.write(json.dumps(goldarr,indent=4))
+        f.close()
 
 f = open(sys.argv[2],'w')
 f.write(json.dumps(goldarr,indent=4))

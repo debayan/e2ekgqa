@@ -11,7 +11,9 @@ logging.basicConfig(level=logging.INFO)
 transformers_logger = logging.getLogger("transformers")
 transformers_logger.setLevel(logging.WARNING)
 
-testd = json.loads(open(sys.argv[1]).read())
+testd_ = json.loads(open(sys.argv[1]).read())
+x = len(testd_)
+testd = testd_[int(0.8*x):]
 
 testbatch = ['rel: '+x['question'] for x in testd]
 

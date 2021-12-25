@@ -1,4 +1,4 @@
-import logging,os
+import os
 import json
 import sys
 import requests
@@ -6,6 +6,7 @@ import torch.multiprocessing
 from elasticsearch import Elasticsearch
 from sentence_transformers import SentenceTransformer, util
 from annoy import AnnoyIndex
+from Neighbours2021 import Neighbours
 
 model_name = 'quora-distilbert-multilingual'
 sentencemodel = SentenceTransformer(model_name)
@@ -14,6 +15,7 @@ annoy_index = AnnoyIndex(768, 'angular')
 annoy_index.load('annoy-p31.ann')
 annoyents = json.loads(open('annoyentids.json').read())
 
+n = Neighbours()
 
 reldict = json.loads(open('en.json').read())
 goldrellabels = []
@@ -31,8 +33,12 @@ def annmatch(entlabel):
     return [annoyents[id] for id in corpus_ids]
 
 def tremb(labels): #transformers
-    sentence_embeddings = sentencemodel.encode(labels, convert_to_tensor=True)
-    return sentence_embeddings.tolist()
+    try:
+        sentence_embeddings = sentencemodel.encode(labels, convert_to_tensor=True)
+        return sentence_embeddings.tolist()
+    except Exception as err:
+        print(err)
+        return []
 
 def getlabel(ent):
     results = es.search(index='wikidataentitylabelindex02',body={"query":{"term":{"uri":{"value":ent}}}})
@@ -91,6 +97,8 @@ def pnelentcands(question):
     ents = r.json()
     return ents
 
+def getneighbours(entid):
+    return n.fetch_neighbours_relations(entid) 
 
 def vectorise(question,labels):
     entss = ''
@@ -120,6 +128,7 @@ def vectorise(question,labels):
     strarr = []
     embarr = []
     questionarr = question.split()
+    questionfullftembed = tremb([question])[0]
     questionftembed = tremb(questionarr)
     strarr = questionarr
     embarr = [x+200*[0.0] for x in questionftembed]
@@ -128,22 +137,26 @@ def vectorise(question,labels):
     embarr += [968*[-1.0]]
 #    pnelents = pnelentcands(question)
 #    print("pnel ents:",pnelents['entities'])
-#    for k,v in pnelents['entities'].items():
-#        seen = []
-#        for entcand in v:
-#            if entcand[0] not in seen:
-#                labelembed = tremb([entcand[3]])[0]
-#                entemb = kgembed(entcand[0])
-#                strarr += [entcand[0]]
-#                embarr += [labelembed + entemb]
-#                seen.append(entcand[0])
+#    if len(pnelents['entities']) > 0:
+#        for k,v in pnelents['entities'].items():
+#            seen = []
+#            for entcand in v:
+#                if entcand[0] not in seen:
+#                   labelembed = tremb([entcand[3]])[0]
+#                   entemb = kgembed(entcand[0])
+#                   strarr += [entcand[0]]
+#                   embarr += [labelembed + entemb]
+#                   seen.append(entcand[0])
 #    strarr += ['[SEP]']
 #    embarr += [968*[-1.0]]
+    relneighbours = []
     for k,v in entlabelcands.items():
         if len(v) == 0:
             continue
         labelembeds = tremb([x['wikidataLabel'] for x in v])
         entembs = [kgembed(x['uri']) for x in v]
+        for x in v:
+            relneighbours += getneighbours(x['uri'])
         #[print(x,y,z) for x,y,z in zip(v,labelembeds,entembs)]
         strarr += [x['uri'] for x in v]
         embarr += [x+y for x,y in zip(labelembeds,entembs)]
@@ -170,6 +183,25 @@ def vectorise(question,labels):
         embarr += [x+y for x,y in zip(labelembeds,relembs)]
         strarr += ['[SEP]']
         embarr += [968*[-1.0]]
-    return strarr,embarr
+    # one and on half hop rel neighbours for entities
+    neighbours = list(set(relneighbours))
+    labelembeds = tremb([getlabel(x) for x in neighbours])
+    entembs = [kgembed(x) for x in neighbours]
+    #[print(x,y,z) for x,y,z in zip(v,labelembeds,entembs)]
+    strarr += [x for x in neighbours]
+    embarr += [x+y for x,y in zip(labelembeds,entembs)]
+    strarr += ['[SEP]']
+    embarr += [968*[-1.0]]
+    count = 0
+    strarr_ = []
+    embarr_ = []
+    for emb,strr in zip(embarr,strarr):
+        count += 1
+        if count % 10 == 0:
+            embarr_.append(questionfullftembed+200*[0.0])
+            strarr_.append('[QEMB]')
+        embarr_.append(emb)
+        strarr_.append(strr)
+    return strarr_,embarr_
 
 

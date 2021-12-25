@@ -17,7 +17,7 @@ def getlabel(ent):
         return ''
 
 for item in d:
-    wikisparql = item['sparql_wikidata']
+    wikisparql = item['sparql_wikidata'].replace('(',' ( ').replace(')',' ) ').replace('{',' { ').replace('}',' } ')
     unit = {}
     unit['uid'] = item['uid']
     unit['question'] = item['question']

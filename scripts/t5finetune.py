@@ -10,13 +10,17 @@ logging.basicConfig(level=logging.INFO)
 transformers_logger = logging.getLogger("transformers")
 transformers_logger.setLevel(logging.WARNING)
 
-traind = json.loads(open(sys.argv[1]).read())
-testd = json.loads(open(sys.argv[2]).read())
+traind_ = json.loads(open(sys.argv[1]).read())
+x = len(traind_)
+traind = traind_[:int(0.95*x)]
+vald   = traind_[int(0.95*x):]
+print(len(vald))
+sys.exit(1)
 
 
 train_data = [["rel", x['question'], x['labels']] for x in traind]
 
-eval_data = [["rel", x['question'], x['labels']] for x in testd]
+eval_data = [["rel", x['question'], x['labels']] for x in vald]
 
 train_df = pd.DataFrame(train_data)
 train_df.columns = ["prefix", "input_text", "target_text"]
@@ -32,8 +36,11 @@ model_args.use_multiprocessed_decoding = False
 model_args.use_multiprocessing = False
 model_args.train_batch_size = 16
 model_args.fp16 = False
+model_args.optimizer = 'Adafactor'
+model_args.evaluate_during_training_steps = -1
+
 #model_args.learning_rate = 2e-5
-model_args.output_dir = 'outputs5/'
+model_args.output_dir = 'outputs6/'
 
 
 model = T5Model("t5", "t5-base", args=model_args)

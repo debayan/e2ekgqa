@@ -7,7 +7,7 @@ from sentence_transformers import SentenceTransformer, util
 model_name = 'quora-distilbert-multilingual'
 model = SentenceTransformer(model_name)
 
-
+propdict = json.loads(open('en.json').read())
 
 es = Elasticsearch(host='ltcpu1',port=49158)
 
@@ -56,13 +56,17 @@ for idx,item in enumerate(dgold):
     citem = copy.deepcopy(item)
     strarr = []
     embarr = []
+    if not item['question']:
+        continue
     questionarr = item['question'].split()
     questionftembed = tremb(questionarr)
+    questionfullftembed = tremb([item['question']])[0]
     strarr = questionarr
-    embarr = [x+200*[0.0] for x in questionftembed]
+    embarr = [questionfullftembed+x+200*[0.0] for x in questionftembed]
     #[print(x,y) for x,y in zip(questionarr,questionftembed)]
+
     strarr += ['[SEP]']
-    embarr += [968*[-1.0]]
+    embarr += [1736*[-1.0]]
     for k,v in item['entlabelcands'].items():
         if len(v) == 0:
             continue
@@ -70,9 +74,9 @@ for idx,item in enumerate(dgold):
         entembs = [kgembed(x['uri']) for x in v]
         #[print(x,y,z) for x,y,z in zip(v,labelembeds,entembs)]
         strarr += [x['uri'] for x in v]
-        embarr += [x+y for x,y in zip(labelembeds,entembs)]
+        embarr += [questionfullftembed+x+y for x,y in zip(labelembeds,entembs)]
         strarr += ['[SEP]']
-        embarr += [968*[-1.0]]
+        embarr += [1736*[-1.0]]
     for k,v in item['annentlabelcands'].items():
         if len(v) == 0:
             continue
@@ -80,9 +84,9 @@ for idx,item in enumerate(dgold):
         entembs = [kgembed(x) for x in v]
         #[print(x,y,z) for x,y,z in zip(v,labelembeds,entembs)]
         strarr += [x for x in v]
-        embarr += [x+y for x,y in zip(labelembeds,entembs)]
+        embarr += [questionfullftembed+x+y for x,y in zip(labelembeds,entembs)]
         strarr += ['[SEP]']
-        embarr += [968*[-1.0]]
+        embarr += [1736*[-1.0]]
     for k,v in item['rellabelcands'].items():
         if len(v) == 0:
             continue
@@ -91,9 +95,25 @@ for idx,item in enumerate(dgold):
         relembs = [kgembed(x[0]) for x in v]
         #[print(x,y,z) for x,y,z in zip(v,labelembeds,relembs)]
         strarr += [x[0] for x in v]
-        embarr += [x+y for x,y in zip(labelembeds,relembs)]
+        embarr += [questionfullftembed+x+y for x,y in zip(labelembeds,relembs)]
         strarr += ['[SEP]']
-        embarr += [968*[-1.0]]
+        embarr += [1736*[-1.0]]
+    neighbours = []
+    for k,v in item['neighbours'].items():
+        if len(v) == 0:
+            continue
+        for rel in v:
+            neighbours.append(rel)
+    neighbours = list(set(neighbours))
+        #print(k, groundembed)
+    if len(neighbours) > 0:
+        labelembeds = tremb([propdict[x] if x in propdict else 'null' for x in neighbours])
+        relembs = [kgembed(x) for x in neighbours]
+        #[print(x,y,z) for x,y,z in zip(v,labelembeds,relembs)]
+        strarr += [x for x in neighbours]
+        embarr += [questionfullftembed+x+y for x,y in zip(labelembeds,relembs)]
+        strarr += ['[SEP]']
+        embarr += [1736*[-1.0]]
     #print(strarr, len(strarr))
     #print(len(embarr))
     citem['vectorstring'] = strarr
