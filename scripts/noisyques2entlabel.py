@@ -1,5 +1,14 @@
 import sys,os,json,re
 from elasticsearch import Elasticsearch
+from simpletransformers.t5 import T5Model, T5Args
+
+model_args = T5Args()
+model_args.use_multiprocessed_decoding = False
+model_args.use_multiprocessing = False
+model_args.fp16 = False
+
+t5model = T5Model("t5", "outputs4/checkpoint-11164-epoch-4/", args=model_args)
+
 
 d = json.loads(open(sys.argv[1]).read())
 props = json.loads(open('en1.json').read())
@@ -21,6 +30,12 @@ for item in d:
     unit = {}
     unit['uid'] = item['uid']
     unit['question'] = item['question']
+    if not item['question']:
+        continue
+    t5preds = t5model.predict([item['question']])
+    t5pred = t5preds[0]
+    print(t5pred)
+    #unit['paraphrased_question'] = item['paraphrased_question']
     ents = re.findall( r'wd:(.*?) ',wikisparql)
     rels = re.findall( r'wdt:(.*?) ',wikisparql)
     rels += re.findall( r'p:(.*?) ',wikisparql)
@@ -50,7 +65,7 @@ for item in d:
     #rellabelarr.sort()
     if not item['question']:
         continue
-    arr.append({"question":item['question'], 'labels': ' :: '.join(entlabelarr) + ' // ' + ' ;; '.join(rellabelarr) , 'uid': item['uid'] ,'ents':ents, 'rels': rels, 'sparql_wikidata':wikisparql})
+    arr.append({"question":item['question'], 'labels': t5pred , 'uid': item['uid'] ,'ents':ents, 'rels': rels, 'sparql_wikidata':wikisparql})
 
 f = open(sys.argv[2],'w')
 f.write(json.dumps(arr, indent=4))

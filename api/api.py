@@ -22,11 +22,11 @@ def kgqa():
     # 2. labels to candidates
     r = requests.post("http://localhost:2223/erlinker",json=labels,headers={'Connection':'close'})
     entrelcands = r.json()
-    print("entrelcands:",entrelcands)
-    # 3. linked ent rel to query
+    #print("entrelcands:",entrelcands)
+#     3. linked ent rel to query
     r = requests.post("http://localhost:2224/generatequery",json=entrelcands,headers={'Connection':'close'})
     query = r.json()
-    print("query:",query)
+    #print("query:",query)
 	# 4. hit sparql to wikidata and fetch answer
     queries,results = qp.fetchanswer(query['predicted_query'])
     resultitem = copy.deepcopy(query)

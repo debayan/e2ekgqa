@@ -14,17 +14,10 @@ es = Elasticsearch(host='ltcpu1',port=49158)
 
 entembedcache = {}
 
-trembdict = {}
 
 def tremb(labels): #transformers
-    labels = [x if x else 'null' for x in labels]
-    l = ' '.join(labels)
-    if l in trembdict:
-        return trembdict[l]
-    else:
-        sentence_embeddings = model.encode(labels, convert_to_tensor=True)
-        trembdict[l] = sentence_embeddings.tolist()
-        return trembdict[l]
+    sentence_embeddings = model.encode(labels, convert_to_tensor=True)
+    return sentence_embeddings.tolist()
 
 
 def kgembed(entid): #fasttext
@@ -102,15 +95,16 @@ for idx,item in enumerate(dgold):
     questionarr = item['question'].split()
     questionftembed = tremb(questionarr)
     questionfullftembed = tremb([item['question']])[0]
+    searchrank = -1 #makes no sense for non ents and rels, hence -1
     strarr += ['QEMB']
-    embarr += [questionfullftembed+200*[0.0]]
+    embarr += [[searchrank]+questionfullftembed+200*[0.0]]
     strarr += ['[SEP]']
-    embarr += [968*[-1.0]]
+    embarr += [969*[-1.0]]
     strarr += questionarr
-    embarr += [x+200*[0.0] for x in questionftembed]
+    embarr += [[searchrank]+x+200*[0.0] for x in questionftembed]
     #[print(x,y) for x,y in zip(questionarr,questionftembed)]
     strarr += ['[SEP]']
-    embarr += [968*[-1.0]]
+    embarr += [969*[-1.0]]
     for k,v in item['entlabelcands'].items():
         if len(v) == 0:
             continue
@@ -118,9 +112,12 @@ for idx,item in enumerate(dgold):
         entembs = [kgembed(x['uri']) for x in v]
         #[print(x,y,z) for x,y,z in zip(v,labelembeds,entembs)]
         strarr += [x['uri'] for x in v]
-        embarr += [x+y for x,y in zip(labelembeds,entembs)]
+        rank = 0
+        for x,y in zip(labelembeds,entembs):
+            embarr += [[rank]+x+y]
+            rank += 1 
         strarr += ['[SEP]']
-        embarr += [968*[-1.0]]
+        embarr += [969*[-1.0]]
     for k,v in item['annentlabelcands'].items():
         if len(v) == 0:
             continue
@@ -128,9 +125,12 @@ for idx,item in enumerate(dgold):
         entembs = [kgembed(x) for x in v]
         #[print(x,y,z) for x,y,z in zip(v,labelembeds,entembs)]
         strarr += [x for x in v]
-        embarr += [x+y for x,y in zip(labelembeds,entembs)]
+        rank = 0
+        for x,y in zip(labelembeds,entembs):
+            embarr += [[rank]+x+y]
+            rank += 1
         strarr += ['[SEP]']
-        embarr += [968*[-1.0]]
+        embarr += [969*[-1.0]]
     for k,v in item['rellabelcands'].items():
         if len(v) == 0:
             continue
@@ -139,9 +139,12 @@ for idx,item in enumerate(dgold):
         relembs = [kgembed(x[0]) for x in v]
         #[print(x,y,z) for x,y,z in zip(v,labelembeds,relembs)]
         strarr += [x[0] for x in v]
-        embarr += [x+y for x,y in zip(labelembeds,relembs)]
+        rank = 0
+        for x,y in zip(labelembeds,entembs):
+            embarr += [[rank]+x+y]
+            rank += 1
         strarr += ['[SEP]']
-        embarr += [968*[-1.0]]
+        embarr += [969*[-1.0]]
     neighbours = []
     for k,v in item['neighbours'].items():
         if len(v) == 0:
@@ -155,13 +158,12 @@ for idx,item in enumerate(dgold):
         relembs = [kgembed(x) for x in neighbours]
         #[print(x,y,z) for x,y,z in zip(v,labelembeds,relembs)]
         strarr += [x for x in neighbours]
-        embarr += [x+y for x,y in zip(labelembeds,relembs)]
+        embarr += [[-1]+x+y for x,y in zip(labelembeds,relembs)]
         strarr += ['[SEP]']
-        embarr += [968*[-1.0]]
+        embarr += [969*[-1.0]]
     #print(strarr, len(strarr))
     #print(len(embarr))
     citem['vectorstring'] = strarr
     citem['vector'] = embarr
     f.write(json.dumps(citem)+'\n')
-    sys.exit(1)
 f.close()

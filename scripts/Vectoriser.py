@@ -17,7 +17,7 @@ annoyents = json.loads(open('annoyentids.json').read())
 
 n = Neighbours()
 
-reldict = json.loads(open('en.json').read())
+reldict = json.loads(open('en1.json').read())
 goldrellabels = []
 
 for k,v in reldict.items():
@@ -32,13 +32,11 @@ def annmatch(entlabel):
     corpus_ids, scores = annoy_index.get_nns_by_vector(question_embedding, top_k_hits, include_distances=True)
     return [annoyents[id] for id in corpus_ids]
 
+
 def tremb(labels): #transformers
-    try:
-        sentence_embeddings = sentencemodel.encode(labels, convert_to_tensor=True)
-        return sentence_embeddings.tolist()
-    except Exception as err:
-        print(err)
-        return []
+    labels = [x if x else 'null' for x in labels]
+    sentence_embeddings = sentencemodel.encode(labels, convert_to_tensor=True)
+    return sentence_embeddings.tolist()
 
 def getlabel(ent):
     results = es.search(index='wikidataentitylabelindex02',body={"query":{"term":{"uri":{"value":ent}}}})
@@ -57,8 +55,46 @@ def kgembed(entid): #fasttext
         embedding = [float(x) for x in res['hits']['hits'][0]['_source']['embedding']]
         return embedding
     except Exception as e:
-        print(entid,' entity embedding not found')
+        #print(entid,' entity embedding not found')
         return 200*[0.0]
+
+def sparqlendpoint(query):
+    url = 'http://ltcpu3:8890/sparql'
+    r = requests.get(url, params = {'format': 'json', 'query': query})
+    try:
+        data = r.json()
+        return data
+    except Exception as err:
+        print(err)
+        return {"error":repr(err), "errorcode":r.status_code}
+
+
+rellabelcache = {}
+def rellabel(rel):
+    if rel in rellabelcache:
+        return rellabelcache[rel]
+    if rel in reldict:
+        return reldict[rel]
+    else:
+        sparql = '''PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#> 
+                    PREFIX wd: <http://www.wikidata.org/entity/> 
+                    SELECT  *
+                       WHERE {
+                            wd:%s rdfs:label ?label .
+                            FILTER (langMatches( lang(?label), "EN" ) )
+                       } 
+                    LIMIT 1'''%(rel)
+        result = sparqlendpoint(sparql)
+        if result:
+            if result['results']['bindings']:
+                label = result['results']['bindings'][0]['label']['value']
+                print(rel,label)
+                if not label:
+                    return 'null'
+                rellabelcache[rel] = label
+                return label
+        else:
+            return 'null'
 
 def relcands(rellabel):
     results = []
@@ -109,8 +145,8 @@ def vectorise(question,labels):
         print(err, labels)
         entss = labels
     try:
-        ents = entss.split('::')
-        rels = relss.split(';;')
+        ents = [x.strip() for x in entss.split('::')]
+        rels = [x.strip() for x in relss.split(';;')]
     except Exception as err:
         print("error:",err)
         return [],[]
@@ -130,11 +166,15 @@ def vectorise(question,labels):
     questionarr = question.split()
     questionfullftembed = tremb([question])[0]
     questionftembed = tremb(questionarr)
-    strarr = questionarr
-    embarr = [x+200*[0.0] for x in questionftembed]
-    #[print(x,y) for x,y in zip(questionarr,questionftembed)]
+    searchrank = -1 #makes no sense for non ents and rels, hence -1
+    strarr += ['QEMB']
+    embarr += [[searchrank]+questionfullftembed+200*[0.0]]
     strarr += ['[SEP]']
-    embarr += [968*[-1.0]]
+    embarr += [969*[-1.0]]
+    strarr += questionarr
+    embarr += [[searchrank]+x+200*[0.0] for x in questionftembed]
+    strarr += ['[SEP]']
+    embarr += [969*[-1.0]]
 #    pnelents = pnelentcands(question)
 #    print("pnel ents:",pnelents['entities'])
 #    if len(pnelents['entities']) > 0:
@@ -159,9 +199,12 @@ def vectorise(question,labels):
             relneighbours += getneighbours(x['uri'])
         #[print(x,y,z) for x,y,z in zip(v,labelembeds,entembs)]
         strarr += [x['uri'] for x in v]
-        embarr += [x+y for x,y in zip(labelembeds,entembs)]
+        rank = 0
+        for x,y in zip(labelembeds,entembs):
+            embarr += [[rank]+x+y]
+            rank += 1
         strarr += ['[SEP]']
-        embarr += [968*[-1.0]]
+        embarr += [969*[-1.0]]
     for k,v in annentlabelcands.items():
         if len(v) == 0:
             continue
@@ -169,39 +212,35 @@ def vectorise(question,labels):
         entembs = [kgembed(x) for x in v]
         #[print(x,y,z) for x,y,z in zip(v,labelembeds,entembs)]
         strarr += [x for x in v]
-        embarr += [x+y for x,y in zip(labelembeds,entembs)]
+        rank = 0
+        for x,y in zip(labelembeds,entembs):
+            embarr += [[rank]+x+y]
+            rank += 1
         strarr += ['[SEP]']
-        embarr += [968*[-1.0]]
+        embarr += [969*[-1.0]]
     for k,v in rellabelcands.items():
         if len(v) == 0:
             continue
         #print(k, groundembed)
-        labelembeds = tremb([x[1] for x in v])
+        labelembeds = tremb([rellabel(x[0]) for x in v])
         relembs = [kgembed(x[0]) for x in v]
         #[print(x,y,z) for x,y,z in zip(v,labelembeds,relembs)]
         strarr += [x[0] for x in v]
-        embarr += [x+y for x,y in zip(labelembeds,relembs)]
+        rank = 0
+        for x,y in zip(labelembeds,entembs):
+            embarr += [[rank]+x+y]
+            rank += 1
         strarr += ['[SEP]']
-        embarr += [968*[-1.0]]
+        embarr += [969*[-1.0]]
     # one and on half hop rel neighbours for entities
     neighbours = list(set(relneighbours))
-    labelembeds = tremb([getlabel(x) for x in neighbours])
-    entembs = [kgembed(x) for x in neighbours]
-    #[print(x,y,z) for x,y,z in zip(v,labelembeds,entembs)]
-    strarr += [x for x in neighbours]
-    embarr += [x+y for x,y in zip(labelembeds,entembs)]
-    strarr += ['[SEP]']
-    embarr += [968*[-1.0]]
-    count = 0
-    strarr_ = []
-    embarr_ = []
-    for emb,strr in zip(embarr,strarr):
-        count += 1
-        if count % 10 == 0:
-            embarr_.append(questionfullftembed+200*[0.0])
-            strarr_.append('[QEMB]')
-        embarr_.append(emb)
-        strarr_.append(strr)
-    return strarr_,embarr_
-
-
+    print("lenneighbours",len(neighbours))
+    if len(neighbours) > 0:
+        labelembeds = tremb([rellabel(x) for x in neighbours])
+        relembs = [kgembed(x) for x in neighbours]
+        #[print(x,y,z) for x,y,z in zip(v,labelembeds,relembs)]
+        strarr += [x for x in neighbours]
+        embarr += [[-1]+x+y for x,y in zip(labelembeds,relembs)]
+        strarr += ['[SEP]']
+        embarr += [969*[-1.0]]
+    return strarr,embarr

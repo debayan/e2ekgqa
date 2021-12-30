@@ -8,7 +8,7 @@ class QueryProcessor:
 		pass
 
 	def sparqlendpoint(self, query):
-		url = 'https://query.wikidata.org/sparql'
+		url = 'http://ltcpu3:8890/sparql'
 		r = requests.get(url, params = {'format': 'json', 'query': query})
 		print(r)
 		try:
@@ -20,38 +20,43 @@ class QueryProcessor:
 			return {"error":repr(err), "errorcode":r.status_code}
 
 	def findresults(self, query_arr):
+		print("querry_arr:",query_arr)
 		result_queries = []
 		queries = []
 		result = {}
 		query = ' '.join(query_arr)
 		query = query.replace(' wd: ',' wd:').replace(' p: ',' p:').replace(' wdt: ',' wdt:').replace(' ps: ' , ' ps:').replace(' pq: ',' pq:')
-		query = query.replace(' wd:q',' wd:Q').replace(' p:p',' p:P').replace(' wdt:p',' wdt:P').replace(' ps:p' , ' ps:P').replace(' pq:p',' pq:P').replace(", \' ",", \'").replace(" \' )","\' )").replace("\' en \'","\'en\'")
-		queries.append(query)
-		#result = self.sparqlendpoint(query)
-		if 'error' in result:
-			result_queries.append({"query":query,"result":result,"type":"error"})
-			return queries,result_queries
-		if 'results' in result:
-			if 'bindings' in result['results']:
-				if len(result['results']['bindings']) > 0:
-					result_queries.append({"query":query,"result":result['results']['bindings'],"type":"normal"})
-					return queries,result_queries
-		if 'boolean' in result:
-			result_queries.append({"query":query,"result":result['boolean'],"type":"bool"})
-			return queries,result_queries
-		return queries,result_queries	
+		query_ = query.replace(' wd:q',' wd:Q').replace(' p:p',' p:P').replace(' wdt:p',' wdt:P').replace(' ps:p' , ' ps:P').replace(' pq:p',' pq:P').replace(", \' ",", \'").replace(" \' )","\' )").replace(" en","en")
+		query = '''PREFIX wd: <http://www.wikidata.org/entity/> PREFIX wds: <http://www.wikidata.org/entity/statement/> PREFIX wdv: <http://www.wikidata.org/value/> PREFIX wdt: <http://www.wikidata.org/prop/direct/> PREFIX wikibase: <http://wikiba.se/ontology#> PREFIX p: <http://www.wikidata.org/prop/> PREFIX ps: <http://www.wikidata.org/prop/statement/> PREFIX pq: <http://www.wikidata.org/prop/qualifier/> PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#> ''' + query_
+		print("QUERY:",query)
+		queries.append(query_)
+		result = self.sparqlendpoint(query)
+		return query_,result
+#		if 'error' in result:
+#			result_queries.append({"query":query_,"result":result,"type":"error"})
+#			return queries,result_queries
+#		if 'results' in result:
+#			if 'bindings' in result['results']:
+#				if len(result['results']['bindings']) > 0:
+#					result_queries.append({"query":query_,"result":result['results']['bindings'],"type":"normal"})
+#					return queries,result_queries
+#		if 'boolean' in result:
+#			result_queries.append({"query":query_,"result":result['boolean'],"type":"bool"})
+#			return queries,result_queries
+#		return queries,result_queries	
 			
 		 
 	def fetchanswer(self, queryarr):
-		url = 'https://query.wikidata.org/sparql'
-		queries,results = self.findresults(queryarr)
+		queries = []
+		results = []
+		for query in queryarr:
+			query_,r = self.findresults(query[0])
+			queries.append(query_)
+			results.append(r)
 		return queries,results
 
 
 q = QueryProcessor()
 
-#print(q.fetchanswer(["select","?vr0","where","{","q310903","p69","?vr1",".","?vr1","p131","?vr0","}"]))  # list of ents
-#print(q.fetchanswer(['SELECT', '(', 'COUNT', '(', '?var0', ')', 'AS', '?value', ')', '{', 'q338430', 'p2563', '?var0', '}']))  #count
-#print(q.fetchanswer(['SELECT', '?value1', '?value2', 'WHERE', '{', 'q11806', 'p40', '?s', '.', '?s', 'p40', 'q4667661', '.', '?s', 'p569', '?value1', '.', '?s', 'p25', '?value2', '}'])) #dual intent
-
-		
+if __name__ == '__main__':
+    print(q.fetchanswer([(['select', 'distinct', '?answer', 'where', '{', 'wd:', 'q32491', 'wdt:', 'p3362', '?answer}'],-1)]))

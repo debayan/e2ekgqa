@@ -14,7 +14,7 @@ def tremb(labels): #transformers
 
 
 es = Elasticsearch(host='ltcpu1',port=49158)
-props = json.loads(open('en.json').read())
+props = json.loads(open('en1.json').read())
 entembedcache = {}
 
 
@@ -48,6 +48,8 @@ f = open(sys.argv[2],'w')
 
 for idx,item in enumerate(dgold):
     print(idx)
+    if idx < 26694:
+        continue  
     citem = copy.deepcopy(item)
     strarr = []
     embarr = []
@@ -61,11 +63,17 @@ for idx,item in enumerate(dgold):
     rels = citem['rels']
     print(wikisparql,ents,rels)
     questionftembed = tremb(questionarr)
-    strarr = questionarr
-    embarr = [x+200*[0.0] for x in questionftembed]
+    questionfullftembed = tremb([item['question']])[0]
+    searchrank = -1 #makes no sense for non ents and rels, hence -1
+    strarr += ['QEMB']
+    embarr += [[searchrank]+questionfullftembed+200*[0.0]]
+    strarr += ['[SEP]']
+    embarr += [969*[-1.0]]
+    strarr += questionarr
+    embarr += [[searchrank]+x+200*[0.0] for x in questionftembed]
     #[print(x,y) for x,y in zip(questionarr,questionftembed)]
     strarr += ['[SEP]']
-    embarr += [968*[-1.0]]
+    embarr += [969*[-1.0]]
     for cand in ents+rels:
         cand = cand.replace('}','').replace('.','')
         if not cand:
@@ -77,7 +85,7 @@ for idx,item in enumerate(dgold):
             else:
                 relftembed = 768*[0.0]
             relkgembed = kgembed(cand)
-            embarr += [relftembed+relkgembed]
+            embarr += [[-1]+relftembed+relkgembed]
             strarr += [cand]
             continue
         if cand[0] == 'Q':
@@ -87,7 +95,7 @@ for idx,item in enumerate(dgold):
             else:
                 entftembed = 768*[0.0]
             entkgembed = kgembed(cand)
-            embarr += [entftembed+entkgembed]
+            embarr += [[-1]+entftembed+entkgembed]
             strarr += [cand]
             continue
     #print(len(embarr))

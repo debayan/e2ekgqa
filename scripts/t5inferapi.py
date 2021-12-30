@@ -37,6 +37,7 @@ def ques2labels():
     x,y = Vectoriser.vectorise(nlquery,pred)
     return json.dumps({'nlquery':nlquery,'outputlabels':pred, 'candidatestring': x, 'candidatevectors': y}, indent=4)
 
+
 if __name__ == '__main__':
     http_server = WSGIServer(('', 2222), app)
     http_server.serve_forever()

@@ -5,7 +5,7 @@ import csv
 import torch
 import json
 from annoy import AnnoyIndex
-from Neighbours import Neighbours
+from Neighbours2021 import Neighbours
 
 n = Neighbours()
 es = Elasticsearch(host='ltcpu1',port=49158)
@@ -21,13 +21,11 @@ annoy_index = AnnoyIndex(768, 'angular')
 annoy_index.load('annoy-p31.ann')
 annoyents = json.loads(open('annoyentids.json').read())
 
-reldict = json.loads(open('en.json').read())
+propdict = json.loads(open('en1.json').read())
 goldrellabels = []
 
-for k,v in reldict.items():
+for k,v in propdict.items():
     goldrellabels.append([k,v])
-
-
 sentence_embeddings = model.encode([x[1] for x in goldrellabels], convert_to_tensor=True)
 
 dgold = json.loads(open(sys.argv[1]).read())
@@ -37,7 +35,10 @@ es = Elasticsearch(host='ltcpu1',port=49158)
 def getneighbours(entid):
     return n.fetch_neighbours_relations(entid)
 
+relcanddict = {}
 def relcands(rellabel):
+    if rellabel in relcanddict:
+        return relcanddict[rellabel]   
     results = []
     query = rellabel.strip()
     if not query:
@@ -55,6 +56,7 @@ def relcands(rellabel):
     for score, idx in zip(top_results[0], top_results[1]):
         #print(goldrellabels[idx], "(Score: {:.4f})".format(score))
         results.append(goldrellabels[idx])
+    relcanddict[rellabel] = results
     return results
 
 def entcands(entlabel):
@@ -89,8 +91,8 @@ for idx,item in enumerate(dgold):
         print(err, goldlabels)
         entss = goldlabels
     try:
-        ents = entss.split('::')
-        rels = relss.split(';;')
+        ents = [x.strip() for x in entss.split('::')]
+        rels = [x.strip() for x in relss.split(';;')]
     except Exception as err:
         print(err)
         continue
