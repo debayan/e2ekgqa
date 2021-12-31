@@ -19,6 +19,18 @@ class QueryProcessor:
 			print(err)
 			return {"error":repr(err), "errorcode":r.status_code}
 
+	def notempty(self,result):
+		if 'error' in result:
+			return False
+		if 'results' in result:
+			if 'bindings' in result['results']:
+				if len(result['results']['bindings']) > 0:
+					return True
+				else:
+					return False
+		if 'boolean' in result:
+			return True
+
 	def findresults(self, query_arr):
 		print("querry_arr:",query_arr)
 		result_queries = []
@@ -32,28 +44,16 @@ class QueryProcessor:
 		queries.append(query_)
 		result = self.sparqlendpoint(query)
 		return query_,result
-#		if 'error' in result:
-#			result_queries.append({"query":query_,"result":result,"type":"error"})
-#			return queries,result_queries
-#		if 'results' in result:
-#			if 'bindings' in result['results']:
-#				if len(result['results']['bindings']) > 0:
-#					result_queries.append({"query":query_,"result":result['results']['bindings'],"type":"normal"})
-#					return queries,result_queries
-#		if 'boolean' in result:
-#			result_queries.append({"query":query_,"result":result['boolean'],"type":"bool"})
-#			return queries,result_queries
-#		return queries,result_queries	
 			
 		 
 	def fetchanswer(self, queryarr):
-		queries = []
-		results = []
+		valid_queries = []
 		for query in queryarr:
 			query_,r = self.findresults(query[0])
-			queries.append(query_)
-			results.append(r)
-		return queries,results
+			if self.notempty(r):
+				valid_queries.append({"query":query_, "result":r})
+
+		return valid_queries
 
 
 q = QueryProcessor()
