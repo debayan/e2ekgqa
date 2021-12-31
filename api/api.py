@@ -18,7 +18,7 @@ def kgqa():
     # 1. query to labels
     r = requests.post("http://localhost:2222/ques2labels",json=d,headers={'Connection':'close'})
     labels = r.json()
-    print("labels:",labels)
+    #print("labels:",labels)
     # 2. labels to candidates
     r = requests.post("http://localhost:2223/erlinker",json=labels,headers={'Connection':'close'})
     entrelcands = r.json()
@@ -34,7 +34,7 @@ def kgqa():
     del resultitem['predicted_query']
     del resultitem['linkedentrelstring']
     del resultitem['candidatestring']
-    print("results:",valid_queries)
+    print("results:",json.dumps(resultitem,indent=4))
     return json.dumps(resultitem, indent=4)
 
 print("listening...")
